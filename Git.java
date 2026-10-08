@@ -17,15 +17,20 @@ public class Git {
         save("test/test.txt");
         save("Hello.txt");
 
-        ArrayList<String> indexList;
+        // ArrayList<String> indexList;
+        // try {
+        //     indexList = makeIndexList();
+        //     String testTreeHash = createTree(indexList, "test");
+        //     System.out.println("Tree hash: " + testTreeHash);
+        // } catch (IOException e) {
+        //     System.out.println(e);
+        // }
         try {
-            indexList = makeIndexList();
-            String testTreeHash = createTree(indexList, "test");
-            System.out.println("Tree hash: " + testTreeHash);
+            String rootHash = createRootTree();
+            System.out.println("Root tree hash: " + rootHash);
         } catch (IOException e) {
             System.out.println(e);
         }
-        
 
     }
 
@@ -103,7 +108,7 @@ public class Git {
             String hash = hashFile(filePath);
             
 
-            if (!checkSave(filePath, hash)) { //filePath changed to relativePath
+            if (!checkSave(filePath, hash)) { 
                 return false;
             }
 
@@ -112,11 +117,6 @@ public class Git {
             FileWriter writer = new FileWriter(blob);
             int c;
 
-            // if (!filePath.contains("/")) {
-            //     writer.write("blob ");
-            // } else if (filePath.contains("/")) {
-            //     makeTreeFile(filePath); //check!!
-            // }
 
             while ((c = reader.read()) != -1) {
                 writer.append((char) (c));
@@ -124,7 +124,7 @@ public class Git {
             reader.close();
             writer.close();
 
-            if (index(hash, filePath)) { //filePath changed to relativePath
+            if (index(hash, filePath)) { 
                 return true;
             } else {
                 blob.delete();
@@ -137,74 +137,6 @@ public class Git {
             return false;
         }
     }
-
-    // public static String makeTreeFile(String filePath) {
-    //     if (filePath.contains("/")) {
-    //         String[] files = filePath.split("/");
-    //         for (int i = files.length - 1; i >= 0; i--) {
-    //             save(files[i]);
-    //             //check if this file is a directory
-    //             //go look at the files in it
-    //             //hash them and add them to inside the fiel in the objects folder with the title blob or directory depending on what they are
-    //             // then rehash the file with the new things addded inside of them
-    //             //then update the hash and replace the old hash of this directory inside the file of the directory it is in
-    //             //rehash that director
-    //         }
-    //         hashFile(files[files.length - 1]);
-
-    //     }
-    // }
-
-    public static ArrayList<String> makeIndexList() throws IOException {
-        ArrayList<String> indexList = new ArrayList<>();
-        for (String line : Files.readAllLines(Paths.get("git/index"))) {
-            if (!line.isEmpty()) {
-                indexList.add("blob " + line);
-            }
-        }
-        return indexList;
-    }
-
-    public static String createTree(ArrayList<String> indexList, String path) {
-        StringBuilder contents = new StringBuilder();
-
-        for (String part : indexList) {
-            String[] parts = part.split(" ", 3);
-            String partPath = parts[2];
-            // int slashNumber = 0;
-            // for (int i = 0; i < partPath.length(); i++) {
-            //     if (partPath.charAt(i) == '/') {
-            //         slashNumber++;
-            //     }
-            // }
-            int lastSlashIndex = partPath.lastIndexOf('/');
-            String parent = "";
-            String fileName = partPath;
-            if (lastSlashIndex != -1) {
-                parent = partPath.substring(0, lastSlashIndex);
-                fileName = partPath.substring(lastSlashIndex + 1);
-            }
-
-            if (parent.equals(path)) {
-                if (contents.length() >0) {
-                    contents.append("\n");
-                }
-                contents.append(parts[0] + " " + parts[1] + " " + fileName);
-            }
-        }
-
-        String fileHash = hashString(contents.toString());
-        try {
-            FileWriter writer = new FileWriter("git/objects/" + fileHash);
-            writer.write(contents.toString());
-            writer.close();
-        } catch (Exception e) {
-            System.out.println("Failed to write tree in objects: " + e);
-            return null;
-        }
-
-        return fileHash;
-    }    
 
     /*
      * Checks if the current filepath and hash combination already exists in index to prevent
@@ -298,4 +230,145 @@ public class Git {
             return -1;
         }
     }
+
+    //Copies index file to make a temporary list
+    public static ArrayList<String> makeIndexList() throws IOException {
+        ArrayList<String> indexList = new ArrayList<>();
+        for (String line : Files.readAllLines(Paths.get("git/index"))) {
+            if (!line.isEmpty()) {
+                indexList.add("blob " + line);
+            }
+        }
+        sortByPath(indexList);
+        return indexList;
+    }
+
+    //Creates tree for one directory by going through indexList and finding objects with same parent. Adds all of them to contents, then hashes entire contents. 
+    public static String createTree(ArrayList<String> indexList, String path) {
+        StringBuilder contents = new StringBuilder();
+
+        for (String line : indexList) {
+            String[] parts = line.split(" ", 3);
+            String linePath = parts[2];
+            
+            int lastSlashIndex = linePath.lastIndexOf('/');
+            String parent = "";
+            String fileName = linePath;
+            if (lastSlashIndex != -1) {
+                parent = linePath.substring(0, lastSlashIndex);
+                fileName = linePath.substring(lastSlashIndex + 1);
+            }
+
+            if (parent.equals(path)) { //Checks if each line in indexList is in parent folder, adds if so
+                if (contents.length() >0) {
+                    contents.append("\n");
+                }
+                contents.append(parts[0] + " " + parts[1] + " " + fileName);
+            }
+        }
+
+        String fileHash = hashString(contents.toString());
+        try {
+            FileWriter writer = new FileWriter("git/objects/" + fileHash); //adds tree to objects folder
+            writer.write(contents.toString());
+            writer.close();
+        } catch (Exception e) {
+            System.out.println("Failed to write tree in objects: " + e);
+            return null;
+        }
+
+        return fileHash;
+    }    
+
+    //gets parent folder of file from path, returns "" if at first level
+    public static String getParent(String path) {
+        int lastSlashIndex = path.lastIndexOf('/');
+        if (lastSlashIndex == -1) {
+            return "";
+        } else {
+            return path.substring(0, lastSlashIndex);
+        }
+    }
+
+    //sorts alphabetically 
+    public static void sortByPath(ArrayList<String> list) {
+        for (int i = 0; i < list.size(); i++) {
+            int little = i;
+
+            for (int j = i + 1; j < list.size(); j++) {
+                String[] partsJ = list.get(j).split(" ", 3);
+                String jPath = partsJ[2];
+                
+                String[] partsSmallest = list.get(little).split(" ", 3);
+                String smallestPath = partsSmallest[2];
+
+                if (jPath.compareTo(smallestPath) < 0) {
+                    little = j;
+                }
+            }
+
+            String temp = list.get(i);
+            list.set(i, list.get(little));
+            list.set(little, temp);
+        }
+    }
+
+    //gets folder of deepest entry or returns "" if everything is at same first level
+    public static String findDeepestFolder(ArrayList<String> indexList) {
+        int numSlashesMax = -1;
+        String deepestPath = "";
+
+        for (String line : indexList) {
+            String[] parts = line.split(" ", 3);
+            String linePath = parts[2];
+
+            int slashCounter = 0;
+            for (int i = 0; i < linePath.length(); i++) {
+                if(linePath.charAt(i) == '/') {
+                    slashCounter++;
+                }
+            }
+
+            if (slashCounter > numSlashesMax) {
+                numSlashesMax = slashCounter;
+                deepestPath = linePath;
+            }
+        }
+
+        return getParent(deepestPath);
+    }
+
+
+    public static String createRootTree() throws IOException {
+        ArrayList<String> indexList = makeIndexList();
+        return collapseList(indexList);
+    }
+
+    public static String collapseList(ArrayList<String> indexList) {
+        String folder = findDeepestFolder(indexList);
+        String treeHash = createTree(indexList, folder);
+        
+        //if everything on same first level, return just the hash of all those contents
+        if (folder.equals("")) {
+            return treeHash;
+        }
+
+        //copys everything not in the same folder as deepest file to new list
+        ArrayList<String> newList = new ArrayList<>();
+        for (String line : indexList) {
+            String[] parts = line.split(" ", 3);
+            String linePath = parts[2];
+
+            if (!getParent(linePath).equals(folder)) {
+                newList.add(line);
+            }
+        }
+        newList.add("tree " + treeHash + " " + folder);
+        sortByPath(newList); 
+
+        return collapseList(newList);
+
+    }
+    
+    
 }
