@@ -14,8 +14,18 @@ public class Git {
     public static void main(String[] args) {
         init();
         save("Hello.txt");
-        save("test.txt");
+        save("test/test.txt");
         save("Hello.txt");
+
+        ArrayList<String> indexList;
+        try {
+            indexList = makeIndexList();
+            String testTreeHash = createTree(indexList, "test");
+            System.out.println("Tree hash: " + testTreeHash);
+        } catch (IOException e) {
+            System.out.println(e);
+        }
+        
 
     }
 
@@ -167,9 +177,9 @@ public class Git {
             //         slashNumber++;
             //     }
             // }
-            int lastSlashIndex = part.lastIndexOf('/');
+            int lastSlashIndex = partPath.lastIndexOf('/');
             String parent = "";
-            String fileName = "";
+            String fileName = partPath;
             if (lastSlashIndex != -1) {
                 parent = partPath.substring(0, lastSlashIndex);
                 fileName = partPath.substring(lastSlashIndex + 1);
@@ -182,6 +192,18 @@ public class Git {
                 contents.append(parts[0] + " " + parts[1] + " " + fileName);
             }
         }
+
+        String fileHash = hashString(contents.toString());
+        try {
+            FileWriter writer = new FileWriter("git/objects/" + fileHash);
+            writer.write(contents.toString());
+            writer.close();
+        } catch (Exception e) {
+            System.out.println("Failed to write tree in objects: " + e);
+            return null;
+        }
+
+        return fileHash;
     }    
 
     /*
