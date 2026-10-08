@@ -26,8 +26,8 @@ public class Git {
         //     System.out.println(e);
         // }
         try {
-            String rootHash = createRootTree();
-            System.out.println("Root tree hash: " + rootHash);
+            String hashFromIndex = createTreeFromIndex();
+            System.out.println("Root tree hash: " + hashFromIndex);
         } catch (IOException e) {
             System.out.println(e);
         }
@@ -339,7 +339,7 @@ public class Git {
     }
 
 
-    public static String createRootTree() throws IOException {
+    public static String createTreeFromIndex() throws IOException {
         ArrayList<String> indexList = makeIndexList();
         return collapseList(indexList);
     }
