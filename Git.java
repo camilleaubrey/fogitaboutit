@@ -4,12 +4,21 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.HexFormat;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.Files;
 
 public class Git {
     public static void main(String[] args) {
         init();
+        save("Hello.txt");
+        save("test.txt");
+        save("Hello.txt");
+
     }
+
 
     /*
      * Initializes the repository's necessary files. Creates the git directory with children
@@ -61,7 +70,16 @@ public class Git {
             System.out.println("File could not be hashed");
             return null;
         }
+    }
 
+    public static String hashString(String contents) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-1");
+            md.update(contents.getBytes());
+            return HexFormat.of().formatHex(md.digest());
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /*
@@ -71,9 +89,11 @@ public class Git {
      */
     public static boolean save(String filePath) {
         try {
-            String hash = hashFile(filePath);
 
-            if (!checkSave(filePath, hash)) {
+            String hash = hashFile(filePath);
+            
+
+            if (!checkSave(filePath, hash)) { //filePath changed to relativePath
                 return false;
             }
 
@@ -81,13 +101,20 @@ public class Git {
             FileReader reader = new FileReader(filePath);
             FileWriter writer = new FileWriter(blob);
             int c;
+
+            // if (!filePath.contains("/")) {
+            //     writer.write("blob ");
+            // } else if (filePath.contains("/")) {
+            //     makeTreeFile(filePath); //check!!
+            // }
+
             while ((c = reader.read()) != -1) {
                 writer.append((char) (c));
             }
             reader.close();
             writer.close();
 
-            if (index(hash, filePath)) {
+            if (index(hash, filePath)) { //filePath changed to relativePath
                 return true;
             } else {
                 blob.delete();
@@ -100,6 +127,62 @@ public class Git {
             return false;
         }
     }
+
+    // public static String makeTreeFile(String filePath) {
+    //     if (filePath.contains("/")) {
+    //         String[] files = filePath.split("/");
+    //         for (int i = files.length - 1; i >= 0; i--) {
+    //             save(files[i]);
+    //             //check if this file is a directory
+    //             //go look at the files in it
+    //             //hash them and add them to inside the fiel in the objects folder with the title blob or directory depending on what they are
+    //             // then rehash the file with the new things addded inside of them
+    //             //then update the hash and replace the old hash of this directory inside the file of the directory it is in
+    //             //rehash that director
+    //         }
+    //         hashFile(files[files.length - 1]);
+
+    //     }
+    // }
+
+    public static ArrayList<String> makeIndexList() throws IOException {
+        ArrayList<String> indexList = new ArrayList<>();
+        for (String line : Files.readAllLines(Paths.get("git/index"))) {
+            if (!line.isEmpty()) {
+                indexList.add("blob " + line);
+            }
+        }
+        return indexList;
+    }
+
+    public static String createTree(ArrayList<String> indexList, String path) {
+        StringBuilder contents = new StringBuilder();
+
+        for (String part : indexList) {
+            String[] parts = part.split(" ", 3);
+            String partPath = parts[2];
+            // int slashNumber = 0;
+            // for (int i = 0; i < partPath.length(); i++) {
+            //     if (partPath.charAt(i) == '/') {
+            //         slashNumber++;
+            //     }
+            // }
+            int lastSlashIndex = part.lastIndexOf('/');
+            String parent = "";
+            String fileName = "";
+            if (lastSlashIndex != -1) {
+                parent = partPath.substring(0, lastSlashIndex);
+                fileName = partPath.substring(lastSlashIndex + 1);
+            }
+
+            if (parent.equals(path)) {
+                if (contents.length() >0) {
+                    contents.append("\n");
+                }
+                contents.append(parts[0] + " " + parts[1] + " " + fileName);
+            }
+        }
+    }    
 
     /*
      * Checks if the current filepath and hash combination already exists in index to prevent
@@ -141,7 +224,7 @@ public class Git {
                 }
 
                 if (currLine == rewriteLine) {
-                    contents.append(hash + " " + filePath);
+                    contents.append(hash + " " + filePath); //
                 } else {
                     contents.append(str);
                 }
@@ -153,7 +236,7 @@ public class Git {
                 if (contents.length() > 0) {
                     contents.append("\n");
                 }
-                contents.append(hash + " " + filePath);
+                contents.append(hash + " " + filePath); //
             }
 
             FileWriter writer = new FileWriter("./git/index", false);
